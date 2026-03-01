@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -6,6 +7,7 @@ import {
 } from '@xyflow/react'
 
 export function LabeledEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
@@ -26,7 +28,26 @@ export function LabeledEdge({
     targetPosition,
   })
 
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
   const displayLabel = (data?.customLabel as string) || (label as string) || 'default'
+  const onLabelChange = data?.onLabelChange as ((edgeId: string, newLabel: string) => void) | undefined
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editing])
+
+  const commit = useCallback(() => {
+    setEditing(false)
+    if (onLabelChange && draft !== displayLabel) {
+      onLabelChange(id, draft)
+    }
+  }, [id, draft, displayLabel, onLabelChange])
 
   return (
     <>
@@ -40,9 +61,31 @@ export function LabeledEdge({
           }}
           className="nodrag nopan"
         >
-          <span className="bg-background border rounded px-1.5 py-0.5 text-xs">
-            {displayLabel}
-          </span>
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="bg-background border rounded px-1.5 py-0.5 text-xs w-20 text-center outline-none focus:ring-1 focus:ring-primary"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onMouseDown={e => e.stopPropagation()}
+              onKeyDown={e => {
+                e.stopPropagation()
+                if (e.key === 'Enter') commit()
+                if (e.key === 'Escape') setEditing(false)
+              }}
+            />
+          ) : (
+            <span
+              className="bg-background border rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-accent"
+              onDoubleClick={() => {
+                setDraft(displayLabel)
+                setEditing(true)
+              }}
+            >
+              {displayLabel}
+            </span>
+          )}
         </div>
       </EdgeLabelRenderer>
     </>

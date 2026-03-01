@@ -55,6 +55,7 @@ async def create_rule(
             source_port=edge_data.source_port,
             target_node_id=node_map[edge_data.target_node_id].id,
             target_port=edge_data.target_port,
+            label=edge_data.label,
         )
         session.add(edge)
 
@@ -156,6 +157,7 @@ async def update_rule_graph(
             source_port=edge_data.source_port,
             target_node_id=temp_to_real[edge_data.target_node_id],
             target_port=edge_data.target_port,
+            label=edge_data.label,
         )
         session.add(edge)
 

@@ -81,6 +81,7 @@ class RuleEdge(Base):
         Integer, ForeignKey("rule_nodes.id", ondelete="CASCADE"), nullable=False
     )
     target_port: Mapped[str] = mapped_column(String(100), default="default", nullable=False)
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     rule: Mapped["Rule"] = relationship(back_populates="edges")
     source_node: Mapped["RuleNode"] = relationship(foreign_keys=[source_node_id])

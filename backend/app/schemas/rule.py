@@ -174,6 +174,7 @@ class RuleEdgeCreate(BaseModel):
     source_port: str = "default"
     target_node_id: int
     target_port: str = "default"
+    label: str | None = None
 
 
 class RuleEdgeRead(BaseModel):
@@ -183,6 +184,7 @@ class RuleEdgeRead(BaseModel):
     source_port: str
     target_node_id: int
     target_port: str
+    label: str | None = None
 
     model_config = {"from_attributes": True}
 

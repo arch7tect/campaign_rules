@@ -30,8 +30,8 @@ export function ruleToFlow(rule: Rule): { nodes: Node<FlowNodeData>[]; edges: Ed
     sourceHandle: e.source_port,
     target: String(e.target_node_id),
     targetHandle: e.target_port,
-    label: e.source_port || 'default',
-    data: { customLabel: e.source_port || 'default' },
+    label: e.label || e.source_port || 'default',
+    data: { customLabel: e.label || e.source_port || 'default' },
   }))
 
   return { nodes, edges }
@@ -56,6 +56,7 @@ export function flowToGraph(nodes: Node<FlowNodeData>[], edges: Edge[]): RuleGra
       source_port: e.sourceHandle || 'default',
       target_node_id: idToIndex.get(e.target)!,
       target_port: e.targetHandle ?? 'default',
+      label: (e.data?.customLabel as string) || undefined,
     }))
 
   return { nodes: serializedNodes, edges: serializedEdges }

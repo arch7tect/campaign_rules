@@ -23,6 +23,7 @@ export interface RuleEdgeCreate {
   source_port: string
   target_node_id: number
   target_port: string
+  label?: string | null
 }
 
 export interface RuleEdge {
@@ -32,6 +33,7 @@ export interface RuleEdge {
   source_port: string
   target_node_id: number
   target_port: string
+  label?: string | null
 }
 
 export interface Rule {

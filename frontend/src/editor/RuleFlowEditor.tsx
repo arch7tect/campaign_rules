@@ -9,6 +9,7 @@ import {
   BackgroundVariant,
   type Connection,
   type Node,
+  type Edge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { v4 as uuid } from 'uuid'
@@ -45,6 +46,11 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReturnType<typeof useRef<unknown>>['current']>(null)
+
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+  const edgesRef = useRef(edges)
+  edgesRef.current = edges
 
   const onConnect = useCallback((connection: Connection) => {
     // No edges into event nodes
@@ -159,15 +165,29 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
     setSelectedNode(null)
   }, [setNodes, setEdges])
 
-  const edgesWithType = useMemo(() =>
-    edges.map(e => ({ ...e, type: 'labeled' as const })),
-    [edges],
+  const handleEdgeLabelChange = useCallback((edgeId: string, newLabel: string) => {
+    const trimmed = newLabel.trim() || 'default'
+    const updater = (eds: Edge[]) => eds.map(e => {
+      if (e.id !== edgeId) return e
+      return { ...e, data: { ...e.data, customLabel: trimmed } }
+    })
+    edgesRef.current = updater(edgesRef.current)
+    setEdges(updater)
+  }, [setEdges])
+
+  const edgesWithCallbacks = useMemo(() =>
+    edges.map(e => ({
+      ...e,
+      type: 'labeled' as const,
+      data: { ...e.data, onLabelChange: handleEdgeLabelChange },
+    })),
+    [edges, handleEdgeLabelChange],
   )
 
   const handleSave = useCallback(() => {
-    const graph = flowToGraph(nodes, edges)
+    const graph = flowToGraph(nodesRef.current, edgesRef.current)
     onSave(graph)
-  }, [nodes, edges, onSave])
+  }, [onSave])
 
   return (
     <div className="flex h-full" ref={reactFlowWrapper}>
@@ -175,7 +195,7 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
       <div className="flex-1 relative">
         <ReactFlow
           nodes={nodes}
-          edges={edgesWithType}
+          edges={edgesWithCallbacks}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}

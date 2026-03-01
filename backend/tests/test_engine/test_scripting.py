@@ -37,3 +37,35 @@ def test_safe_exec_result_dict():
         {},
     )
     assert result["_result"] == {"contact.score": 100}
+
+
+def test_safe_exec_return_dict():
+    result = safe_exec(
+        "return {'contact.score': 42}",
+        {},
+    )
+    assert result["_result"] == {"contact.score": 42}
+
+
+def test_safe_exec_return_none():
+    """When return is used, script runs in a function wrapper.
+    Variables assigned inside the function are not visible outside."""
+    result = safe_exec("return None", {})
+    assert result.get("_return_value") is None
+
+
+def test_safe_exec_multiline_with_return():
+    script = """\
+score = contact_score + 10
+if score > 100:
+    score = 100
+return {'contact.score': score}
+"""
+    result = safe_exec(script, {"contact_score": 95})
+    assert result["_result"] == {"contact.score": 100}
+
+
+def test_safe_exec_return_non_dict():
+    result = safe_exec("return 42", {})
+    assert result["_return_value"] == 42
+    assert "_result" not in result

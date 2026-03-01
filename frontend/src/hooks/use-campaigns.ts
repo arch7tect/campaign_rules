@@ -1,0 +1,38 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { campaignsApi } from '@/api/campaigns'
+import type { CampaignCreate, CampaignUpdate } from '@/types/campaign'
+
+export function useCampaigns() {
+  return useQuery({ queryKey: ['campaigns'], queryFn: () => campaignsApi.list() })
+}
+
+export function useCampaign(id: number) {
+  return useQuery({ queryKey: ['campaigns', id], queryFn: () => campaignsApi.get(id) })
+}
+
+export function useCreateCampaign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CampaignCreate) => campaignsApi.create(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['campaigns'] }),
+  })
+}
+
+export function useUpdateCampaign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CampaignUpdate }) => campaignsApi.update(id, data),
+    onSuccess: (_d, { id }) => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+      qc.invalidateQueries({ queryKey: ['campaigns', id] })
+    },
+  })
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => campaignsApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['campaigns'] }),
+  })
+}

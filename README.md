@@ -1,13 +1,13 @@
 # Campaign Rules Engine
 
-A campaign management system with an event-driven rule engine. Manages contacts with dynamic attributes, organizes them into campaigns, and executes rules defined as directed graphs (Event -> Condition -> Action). Designed for a future visual editor built with react-flow.
+A campaign management system with an event-driven rule engine and a visual rule editor. Manages contacts with dynamic attributes, organizes them into campaigns, and executes rules defined as directed graphs (Event -> Condition -> Action).
 
 ## Tech Stack
 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy (async), Pydantic v2
 - **Database**: SQLite (via aiosqlite), upgradeable to PostgreSQL
 - **Migrations**: Alembic
-- **Frontend** (future): React + react-flow
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, @xyflow/react, TanStack Query
 
 ## Quick Start
 
@@ -16,20 +16,22 @@ A campaign management system with an event-driven rule engine. Manages contacts 
 python -m venv venv
 source venv/bin/activate
 
-# Install dependencies
+# Install backend dependencies
 pip install -e ".[dev]"
 
 # Run database migrations
 cd backend && alembic upgrade head && cd ..
 
-# Start the server
+# Start the backend server
 uvicorn backend.app.main:app --reload
 
-# Run tests
-pytest
+# In a separate terminal, start the frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8000` (docs at `/docs`). The frontend runs at `http://localhost:5173` and proxies API requests to the backend.
 
 ## Project Structure
 
@@ -40,12 +42,6 @@ backend/
     config.py            # Settings (env-based via pydantic-settings)
     database.py          # Async SQLAlchemy engine and session
     models/              # SQLAlchemy ORM models
-      contact.py         # ContactInfo
-      campaign.py        # Campaign
-      campaign_member.py # CampaignMember
-      attribute.py       # AttributeDefinition
-      rule.py            # Rule, RuleNode, RuleEdge
-      communication.py   # ScheduledCommunication
     schemas/             # Pydantic schemas (API request/response + rule node configs)
     api/                 # FastAPI routers (contacts, campaigns, members, attributes, rules, events, communications)
     engine/              # Rule execution engine
@@ -58,8 +54,59 @@ backend/
       event_service.py   # Event dispatch to engine
       attribute_validator.py # Dynamic attribute validation
   alembic/               # Database migrations
-  tests/                 # Test suite
+  tests/                 # Test suite (59 tests)
+frontend/
+  src/
+    api/                 # Typed fetch wrapper + resource API modules
+    hooks/               # TanStack Query hooks per resource
+    types/               # TypeScript types mirroring backend schemas
+    components/
+      ui/                # shadcn/ui components
+      layout/            # AppSidebar, PageHeader
+      campaigns/         # CampaignForm
+      contacts/          # ContactForm
+      attributes/        # AttributeForm
+    pages/               # Route pages (CampaignList, CampaignDetail, ContactList, ContactDetail, RuleEditor)
+    editor/              # Visual rule editor
+      nodes/             # Custom react-flow nodes (Event, Condition, Action)
+      edges/             # Custom edge components (LabeledEdge)
+      config-forms/      # Node configuration forms (7 form components)
+      utils/             # Serialization (react-flow <-> backend)
+      NodePalette.tsx    # Draggable node palette
+      ConfigPanel.tsx    # Node config side panel
+      RuleFlowEditor.tsx # Main editor canvas
+    components/
+      CodeEditor.tsx     # CodeMirror 6 Python editor
 ```
+
+## Frontend
+
+### Management Pages
+
+- **Campaigns** -- list, create, edit campaigns. Detail page with four tabs:
+  - Rules -- list with active toggle, link to visual editor
+  - Members -- add/remove contacts from campaign
+  - Attributes -- define campaign-specific dynamic attributes
+  - Communications -- view and cancel scheduled communications
+- **Contacts** -- list, create, edit contacts. Detail page with info card, attributes, and campaign memberships
+
+### Visual Rule Editor
+
+Full-screen graph editor for building rules:
+
+- **Node Palette** (left) -- drag event/condition/action nodes onto the canvas
+- **Canvas** (center) -- connect nodes with edges, pan/zoom, auto-layout
+  - Condition nodes display each check inline as `port: left op right` (e.g., `high: contact.score > 80`)
+  - All edges display their port name as a label (e.g., "default", "match", "else")
+  - Nodes can be given custom display names via the config panel
+- **Config Panel** (right) -- click a node to configure it:
+  - Event nodes: set event type or custom event name
+  - Condition nodes: define variable checks with operators, ports, and else branch
+  - Action nodes: configure model modifications, scripts, communications, or triggered events
+  - Run Script action uses a CodeMirror editor with Python syntax highlighting, supports `return` statements
+  - Attribute selectors load defined attributes from the API for the current campaign
+- **Connection validation** -- no edges into event nodes, no self-loops
+- **Save** -- serializes the graph and sends `PUT /api/rules/{id}/graph`
 
 ## Domain Model
 
@@ -88,7 +135,7 @@ Rules are directed graphs with three node types:
 - `modify_model` -- write attributes to Contact or CampaignMember
 - `cancel_communications` -- cancel all pending communications for the contact
 - `schedule_communication` -- create a ScheduledCommunication record
-- `run_script` -- execute sandboxed Python script with access to context variables
+- `run_script` -- execute sandboxed Python script with access to context variables (`contact_*`, `member_*`, `conv_*`). Supports `return` statements; returning a dict applies modifications (e.g., `return {"contact.score": 100}`)
 - `trigger_event` -- fire a named custom event (re-enters the engine)
 
 ### Execution Flow
@@ -136,4 +183,4 @@ pytest backend/tests/test_engine/  # engine tests only
 pytest backend/tests/test_api/     # API tests only
 ```
 
-The test suite covers attribute validation, condition evaluation, action execution, graph traversal, and API integration (55 tests).
+The test suite covers attribute validation, condition evaluation, action execution, graph traversal, scripting (including `return` support), and API integration (59 tests).

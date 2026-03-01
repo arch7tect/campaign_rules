@@ -51,9 +51,9 @@ async def create_rule(
     for edge_data in data.edges:
         edge = RuleEdge(
             rule_id=rule.id,
-            source_node_id=edge_data.source_node_id,
+            source_node_id=node_map[edge_data.source_node_id].id,
             source_port=edge_data.source_port,
-            target_node_id=edge_data.target_node_id,
+            target_node_id=node_map[edge_data.target_node_id].id,
             target_port=edge_data.target_port,
         )
         session.add(edge)
@@ -148,13 +148,13 @@ async def update_rule_graph(
         await session.flush()
         temp_to_real[i] = node.id
 
-    # Create new edges (edge node IDs reference temp indices if needed)
+    # Create new edges (edge node IDs are array indices, remap to real IDs)
     for edge_data in data.edges:
         edge = RuleEdge(
             rule_id=rule.id,
-            source_node_id=edge_data.source_node_id,
+            source_node_id=temp_to_real[edge_data.source_node_id],
             source_port=edge_data.source_port,
-            target_node_id=edge_data.target_node_id,
+            target_node_id=temp_to_real[edge_data.target_node_id],
             target_port=edge_data.target_port,
         )
         session.add(edge)

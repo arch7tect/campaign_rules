@@ -1,5 +1,6 @@
 """Safe Python exec wrapper with restricted globals."""
 
+import textwrap
 from typing import Any
 
 FORBIDDEN_BUILTINS = {
@@ -21,8 +22,22 @@ SAFE_BUILTINS = {
 }
 
 
+def _has_return(script: str) -> bool:
+    """Check if script contains a top-level return statement."""
+    try:
+        compile(script, "<script>", "exec")
+        return False  # Compiled fine without function wrapper, no return
+    except SyntaxError as e:
+        if "return" in str(e).lower():
+            return True
+        raise
+
+
 def safe_exec(script: str, local_vars: dict[str, Any]) -> dict[str, Any]:
     """Execute a Python script with restricted globals.
+
+    If the script contains ``return`` statements, it is wrapped in a
+    function automatically. A returned dict is stored as ``_result``.
 
     Returns the local namespace after execution.
     """
@@ -32,7 +47,22 @@ def safe_exec(script: str, local_vars: dict[str, Any]) -> dict[str, Any]:
     local_ns = dict(local_vars)
 
     try:
-        exec(script, restricted_globals, local_ns)
+        if _has_return(script):
+            # Wrap in function so return works; pass vars via globals
+            globals_with_vars = dict(restricted_globals)
+            globals_with_vars.update(local_vars)
+            indented = textwrap.indent(script, "    ")
+            wrapped = f"def _user_fn():\n{indented}\n_return_value = _user_fn()"
+            wrap_ns: dict[str, Any] = {}
+            exec(wrapped, globals_with_vars, wrap_ns)
+            # Merge back
+            local_ns.update(wrap_ns)
+            if "_return_value" in wrap_ns and wrap_ns["_return_value"] is not None:
+                ret = wrap_ns["_return_value"]
+                if isinstance(ret, dict):
+                    local_ns.setdefault("_result", {}).update(ret)
+        else:
+            exec(script, restricted_globals, local_ns)
     except Exception as e:
         raise RuntimeError(f"Script execution failed: {type(e).__name__}: {e}") from e
 

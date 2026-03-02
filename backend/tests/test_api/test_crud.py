@@ -87,6 +87,59 @@ async def test_campaign_members_crud(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_member_added_rule_runs_on_member_create(client: AsyncClient):
+    # Setup contact + campaign
+    c = await client.post("/api/contacts/", json={"first_name": "Auto"})
+    contact_id = c.json()["id"]
+    cam = await client.post("/api/campaigns/", json={"name": "Auto Member Event"})
+    campaign_id = cam.json()["id"]
+
+    # Create rule: member_added -> modify_model(campaign_member.stage="new")
+    rule_resp = await client.post("/api/rules/", json={
+        "campaign_id": campaign_id,
+        "name": "Set Stage On Add",
+        "nodes": [
+            {
+                "node_type": "event",
+                "node_subtype": "member_added",
+                "config": {"event_type": "member_added"},
+                "position_x": 0,
+                "position_y": 0,
+            },
+            {
+                "node_type": "action",
+                "node_subtype": "modify_model",
+                "config": {
+                    "action_type": "modify_model",
+                    "assignments": [
+                        {
+                            "object_type": "campaign_member",
+                            "attribute_name": "stage",
+                            "value": {"source": "constant", "value": "new"},
+                        }
+                    ],
+                },
+                "position_x": 200,
+                "position_y": 0,
+            },
+        ],
+        "edges": [
+            {"source_node_id": 0, "source_port": "default", "target_node_id": 1, "target_port": "default"},
+        ],
+    })
+    assert rule_resp.status_code == 201
+
+    # Creating member should auto-fire member_added rule
+    member_resp = await client.post("/api/campaign-members/", json={
+        "contact_id": contact_id,
+        "campaign_id": campaign_id,
+    })
+    assert member_resp.status_code == 201
+    member = member_resp.json()
+    assert member["attributes"]["stage"] == "new"
+
+
+@pytest.mark.asyncio
 async def test_attributes_crud(client: AsyncClient):
     resp = await client.post("/api/attributes/", json={
         "name": "score",

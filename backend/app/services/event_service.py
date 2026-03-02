@@ -2,7 +2,7 @@
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.engine.context import ExecutionContext
@@ -25,7 +25,7 @@ async def dispatch_event(payload: EventPayload, session: AsyncSession) -> None:
         select(CampaignMember).where(
             CampaignMember.contact_id == payload.contact_id,
             CampaignMember.campaign_id == payload.campaign_id,
-        )
+        ).order_by(desc(CampaignMember.id)).limit(1)
     )
     member = result.scalar_one_or_none()
     if not member:

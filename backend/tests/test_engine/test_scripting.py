@@ -16,6 +16,15 @@ def test_safe_eval_no_import():
         safe_eval("__import__('os')", {})
 
 
+def test_safe_eval_allowed_import_datetime():
+    assert safe_eval("from datetime import datetime\nreturn datetime is not None", {}) is True
+
+
+def test_safe_eval_disallowed_import_module():
+    with pytest.raises(RuntimeError):
+        safe_eval("import os\nreturn os.name", {})
+
+
 def test_safe_eval_multiline_with_return():
     result = safe_eval(
         """\
@@ -59,6 +68,11 @@ def test_safe_exec_basic():
 def test_safe_exec_no_import():
     with pytest.raises(RuntimeError):
         safe_exec("import os", {})
+
+
+def test_safe_exec_allowed_import_datetime():
+    result = safe_exec("from datetime import datetime\nnow = datetime.now()", {})
+    assert "now" in result
 
 
 def test_safe_exec_no_open():

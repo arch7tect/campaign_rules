@@ -5,7 +5,7 @@ import textwrap
 from typing import Any
 
 FORBIDDEN_BUILTINS = {
-    "__import__", "exec", "eval", "compile",
+    "exec", "eval", "compile",
     "open", "input", "breakpoint",
     "globals", "locals", "vars", "dir",
     "getattr", "setattr", "delattr",
@@ -21,6 +21,19 @@ SAFE_BUILTINS = {
     for k in dir(__builtins__)
     if k not in FORBIDDEN_BUILTINS and not k.startswith("_")
 }
+
+_NATIVE_IMPORT = __import__
+ALLOWED_IMPORT_MODULES = {"datetime"}
+
+
+def safe_import(name: str, globals=None, locals=None, fromlist=(), level=0):
+    root = name.split(".", 1)[0]
+    if root not in ALLOWED_IMPORT_MODULES:
+        raise ImportError(f"Import of module '{name}' is not allowed")
+    return _NATIVE_IMPORT(name, globals, locals, fromlist, level)
+
+
+SAFE_BUILTINS["__import__"] = safe_import
 
 
 def _has_return(script: str) -> bool:

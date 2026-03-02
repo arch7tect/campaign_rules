@@ -1,5 +1,6 @@
 """Execution context — provides attribute access for contact, campaign_member, conversation_results."""
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,6 +77,9 @@ class ExecutionContext:
 
         # Provide context object for direct access
         result["context"] = self
+        # Common datetime helpers for expression/script fields
+        result["datetime"] = datetime
+        result["timedelta"] = timedelta
         return result
 
     @property

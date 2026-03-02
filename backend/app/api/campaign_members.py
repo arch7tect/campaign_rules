@@ -12,6 +12,8 @@ from backend.app.schemas.campaign_member import (
     CampaignMemberRead,
     CampaignMemberUpdate,
 )
+from backend.app.schemas.events import EventPayload
+from backend.app.services.event_service import dispatch_event
 from backend.app.services.attribute_validator import (
     AttributeValidationError,
     validate_attributes,
@@ -52,6 +54,16 @@ async def create_campaign_member(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # Prevent duplicate memberships for the same contact in a campaign.
+    existing_result = await session.execute(
+        select(CampaignMember).where(
+            CampaignMember.contact_id == data.contact_id,
+            CampaignMember.campaign_id == data.campaign_id,
+        )
+    )
+    if existing_result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="Contact is already a member of this campaign")
+
     attrs = await _validate_member_attrs(data.attributes, data.campaign_id, session)
     member = CampaignMember(
         contact_id=data.contact_id,
@@ -60,7 +72,28 @@ async def create_campaign_member(
         status=data.status,
     )
     session.add(member)
-    await session.commit()
+    try:
+        await session.flush()
+
+        # Automatically fire member_added so onboarding rules execute immediately.
+        await dispatch_event(
+            EventPayload(
+                event_type="member_added",
+                campaign_id=data.campaign_id,
+                contact_id=data.contact_id,
+            ),
+            session,
+        )
+    except ValueError as e:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"member_added dispatch failed: {e}")
+
     await session.refresh(member)
     return member
 

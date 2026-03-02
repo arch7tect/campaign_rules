@@ -7,7 +7,7 @@ A campaign management system with an event-driven rule engine and a visual rule 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy (async), Pydantic v2
 - **Database**: SQLite (via aiosqlite), upgradeable to PostgreSQL
 - **Migrations**: Alembic
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, @xyflow/react, TanStack Query
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui, @xyflow/react, TanStack Query
 
 ## Quick Start
 
@@ -83,29 +83,38 @@ frontend/
 
 ### Management Pages
 
-- **Campaigns** -- list, create, edit campaigns. Detail page with four tabs:
+- **Campaigns** -- list, create, edit campaigns.
+  - Campaign detail is edited by clicking the campaign name (no separate edit action button).
+  - Detail page has four tabs:
   - Rules -- list with active toggle, link to visual editor
-  - Members -- add/remove contacts from campaign
+  - Members -- add/remove contacts from campaign; member editing is opened by clicking the member name
   - Attributes -- define campaign-specific dynamic attributes
   - Communications -- view and cancel scheduled communications
-- **Contacts** -- list, create, edit contacts. Detail page with info card, attributes, and campaign memberships
+- **Contacts** -- list, create, edit contacts.
+  - Contact pages manage contact data and attribute values.
+  - Contact attribute metadata is managed separately on `/contact-attributes`.
+- **Script Actions** -- script library CRUD at `/script-actions`; rules reference these actions and pass params at runtime.
 
 ### Visual Rule Editor
 
 Full-screen graph editor for building rules:
 
+- **Rules sidebar** -- supports multi-rule editing per campaign and is hidden by default (toggle with Show/Hide Rules)
 - **Node Palette** (left) -- drag event/condition/action nodes onto the canvas
 - **Canvas** (center) -- connect nodes with edges, pan/zoom, auto-layout
   - Condition nodes display each check inline as `port: left op right` (e.g., `high: contact.score > 80`)
-  - All edges display their port name as a label (e.g., "default", "match", "else")
+  - New edges start with an empty label by default; labels are editable
   - Nodes can be given custom display names via the config panel
 - **Config Panel** (right) -- click a node to configure it:
   - Event nodes: set event type or custom event name
   - Condition nodes: define variable checks with operators, ports, and else branch
+    - Expression source is allowed only on the right side of a check
   - Action nodes: configure model modifications, scripts, communications, or triggered events
-  - Run Script action uses a CodeMirror editor with Python syntax highlighting, supports `return` statements
+  - Python fields (expressions/scripts) use CodeMirror with syntax highlighting
+  - Run Script action selects a script from the script-action library and passes JSON params
   - Attribute selectors load defined attributes from the API for the current campaign
 - **Connection validation** -- no edges into event nodes, no self-loops
+- **Rule start validation** -- if a rule has multiple event nodes, each must have exactly one outgoing edge and all must target the same single condition/action node
 - **Save** -- serializes the graph and sends `PUT /api/rules/{id}/graph`
 
 ## Domain Model
@@ -157,6 +166,7 @@ Rules are directed graphs with three node types:
 | POST/GET/PATCH/DELETE | `/api/attributes/` | Attribute definition CRUD |
 | POST/GET/PATCH/DELETE | `/api/rules/` | Rule CRUD |
 | PUT | `/api/rules/{id}/graph` | Replace rule graph (nodes + edges) |
+| POST/GET/PATCH/DELETE | `/api/script-actions/` | Script action library CRUD |
 | GET | `/api/communications/` | List scheduled communications |
 | POST | `/api/communications/{id}/cancel` | Cancel a communication |
 | POST | `/api/events/` | Fire an event (triggers rule execution) |

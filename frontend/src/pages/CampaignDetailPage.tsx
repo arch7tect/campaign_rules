@@ -146,6 +146,7 @@ function MembersTab({ campaignId }: { campaignId: number }) {
   const updateMember = useUpdateCampaignMember()
   const [open, setOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [memberError, setMemberError] = useState<string | null>(null)
   const [editingMember, setEditingMember] = useState<CampaignMember | null>(null)
   const [editStatus, setEditStatus] = useState<MemberStatus>('active')
   const [editAttrsText, setEditAttrsText] = useState('{}')
@@ -157,6 +158,7 @@ function MembersTab({ campaignId }: { campaignId: number }) {
   const contactsById = new Map((contacts ?? []).map(c => [c.id, c]))
 
   function openEdit(member: CampaignMember) {
+    setMemberError(null)
     setEditingMember(member)
     setEditStatus(member.status)
     setEditAttrsText(JSON.stringify(member.attributes ?? {}, null, 2))
@@ -183,7 +185,13 @@ function MembersTab({ campaignId }: { campaignId: number }) {
 
     updateMember.mutate(
       { id: editingMember.id, data: { status: editStatus, attributes: parsed } },
-      { onSuccess: () => setEditOpen(false) },
+      {
+        onSuccess: () => {
+          setEditOpen(false)
+          setMemberError(null)
+        },
+        onError: error => setMemberError(getErrorMessage(error)),
+      },
     )
   }
 
@@ -200,7 +208,14 @@ function MembersTab({ campaignId }: { campaignId: number }) {
               e.preventDefault()
               createMember.mutate(
                 { contact_id: Number(selectedContactId), campaign_id: campaignId },
-                { onSuccess: () => { setOpen(false); setSelectedContactId('') } }
+                {
+                  onSuccess: () => {
+                    setOpen(false)
+                    setSelectedContactId('')
+                    setMemberError(null)
+                  },
+                  onError: error => setMemberError(getErrorMessage(error)),
+                }
               )
             }} className="space-y-4">
               <div>
@@ -224,6 +239,11 @@ function MembersTab({ campaignId }: { campaignId: number }) {
           </DialogContent>
         </Dialog>
       </div>
+      {memberError && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {memberError}
+        </div>
+      )}
       <Table>
         <TableHeader>
           <TableRow>
@@ -239,13 +259,17 @@ function MembersTab({ campaignId }: { campaignId: number }) {
           {members?.map(m => (
             <TableRow key={m.id}>
               <TableCell>
-                <div className="font-medium">
+                <button
+                  type="button"
+                  className="font-medium text-left hover:underline"
+                  onClick={() => openEdit(m)}
+                >
                   {(() => {
                     const c = contactsById.get(m.contact_id)
                     if (!c) return `Contact #${m.contact_id}`
                     return [c.first_name, c.last_name].filter(Boolean).join(' ') || `Contact #${m.contact_id}`
                   })()}
-                </div>
+                </button>
                 <div className="text-xs text-muted-foreground">
                   {contactsById.get(m.contact_id)?.email ?? '-'}
                 </div>
@@ -259,8 +283,13 @@ function MembersTab({ campaignId }: { campaignId: number }) {
               <TableCell><Badge variant="secondary">{m.status}</Badge></TableCell>
               <TableCell className="text-muted-foreground">{new Date(m.created_at).toLocaleDateString()}</TableCell>
               <TableCell className="space-x-2">
-                <Button variant="outline" size="sm" onClick={() => openEdit(m)}>Edit</Button>
-                <Button variant="destructive" size="sm" onClick={() => deleteMember.mutate(m.id)}>Remove</Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deleteMember.mutate(m.id, { onError: error => setMemberError(getErrorMessage(error)) })}
+                >
+                  Remove
+                </Button>
               </TableCell>
             </TableRow>
           ))}
@@ -310,6 +339,11 @@ function formatAttrs(attrs: Record<string, unknown> | null | undefined): string 
     .slice(0, 3)
     .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
     .join(', ')
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return 'Operation failed.'
 }
 
 function AttributesTab({ campaignId }: { campaignId: number }) {

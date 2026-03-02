@@ -33,6 +33,7 @@ export function LabeledEdge({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const displayLabel = (data?.customLabel as string) ?? (label as string) ?? ''
+  const hasVisibleLabel = displayLabel.trim().length > 0
   const onLabelChange = data?.onLabelChange as ((edgeId: string, newLabel: string) => void) | undefined
 
   useEffect(() => {
@@ -76,15 +77,25 @@ export function LabeledEdge({
               }}
             />
           ) : (
-            <span
-              className="bg-background border rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-accent"
-              onDoubleClick={() => {
-                setDraft(displayLabel)
-                setEditing(true)
-              }}
-            >
-              {displayLabel}
-            </span>
+            hasVisibleLabel ? (
+              <span
+                className="bg-background border rounded px-1.5 py-0.5 text-xs cursor-pointer hover:bg-accent"
+                onDoubleClick={() => {
+                  setDraft(displayLabel)
+                  setEditing(true)
+                }}
+              >
+                {displayLabel}
+              </span>
+            ) : (
+              <span
+                className="block h-2 w-8 cursor-pointer"
+                onDoubleClick={() => {
+                  setDraft(displayLabel)
+                  setEditing(true)
+                }}
+              />
+            )
           )}
         </div>
       </EdgeLabelRenderer>

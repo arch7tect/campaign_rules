@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.engine.context import ExecutionContext
 from backend.app.engine.scripting import safe_eval, safe_exec
 from backend.app.models.communication import CommunicationStatus, ScheduledCommunication
+from backend.app.models.script_action import ScriptAction
 from backend.app.schemas.rule import (
     CancelCommunicationsActionConfig,
     FieldAssignment,
@@ -74,7 +75,22 @@ async def execute_run_script(
     config: RunScriptActionConfig, ctx: ExecutionContext
 ) -> None:
     local_vars = ctx.to_locals()
-    result_ns = safe_exec(config.script, local_vars)
+    if config.script_action_id is not None:
+        action = await ctx.session.get(ScriptAction, config.script_action_id)
+        if not action:
+            raise RuntimeError(f"Script action {config.script_action_id} not found")
+        script = action.script
+    elif config.script:
+        script = config.script
+    else:
+        raise RuntimeError("run_script requires script_action_id or script")
+
+    params = config.params or {}
+    local_vars["params"] = params
+    for key, value in params.items():
+        local_vars[f"param_{key}"] = value
+
+    result_ns = safe_exec(script, local_vars)
     # If script sets _result dict, apply modifications
     if "_result" in result_ns and isinstance(result_ns["_result"], dict):
         for key, value in result_ns["_result"].items():

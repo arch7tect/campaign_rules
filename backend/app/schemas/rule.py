@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- Event configs ---
@@ -86,6 +86,12 @@ class VariableCheck(BaseModel):
     right: ValueRef | None = None  # None for IS_NULL / IS_NOT_NULL
     port_name: str = "match"
 
+    @model_validator(mode="after")
+    def validate_expression_side(self):
+        if self.left.source == ValueSource.EXPRESSION:
+            raise ValueError("Expression source is only allowed on the right side.")
+        return self
+
 
 class VariableCheckConditionConfig(BaseModel):
     condition_type: Literal["variable_check"] = "variable_check"
@@ -123,7 +129,15 @@ class ScheduleCommunicationActionConfig(BaseModel):
 
 class RunScriptActionConfig(BaseModel):
     action_type: Literal["run_script"] = "run_script"
-    script: str
+    script_action_id: int | None = None
+    params: dict | None = None
+    script: str | None = None  # Backward compatibility for existing inline scripts.
+
+    @model_validator(mode="after")
+    def validate_action_reference(self):
+        if self.script_action_id is None and not self.script:
+            raise ValueError("run_script requires script_action_id or script.")
+        return self
 
 
 class TriggerEventActionConfig(BaseModel):
@@ -197,6 +211,11 @@ class RuleCreate(BaseModel):
     nodes: list[RuleNodeCreate] = []
     edges: list[RuleEdgeCreate] = []
 
+    @model_validator(mode="after")
+    def validate_event_fan_in(self):
+        _validate_event_starts(self.nodes, self.edges)
+        return self
+
 
 class RuleUpdate(BaseModel):
     name: str | None = None
@@ -222,3 +241,40 @@ class RuleGraphUpdate(BaseModel):
     """Full graph replacement — nodes and edges."""
     nodes: list[RuleNodeCreate]
     edges: list[RuleEdgeCreate]
+
+    @model_validator(mode="after")
+    def validate_event_fan_in(self):
+        _validate_event_starts(self.nodes, self.edges)
+        return self
+
+
+def _validate_event_starts(nodes: list[RuleNodeCreate], edges: list[RuleEdgeCreate]) -> None:
+    event_indices = [i for i, node in enumerate(nodes) if node.node_type == NodeType.EVENT]
+    if len(event_indices) <= 1:
+        return
+
+    event_index_set = set(event_indices)
+    outgoing_targets: dict[int, list[int]] = {idx: [] for idx in event_indices}
+
+    for edge in edges:
+        if edge.source_node_id in event_index_set:
+            outgoing_targets[edge.source_node_id].append(edge.target_node_id)
+
+    for event_idx, targets in outgoing_targets.items():
+        if len(targets) != 1:
+            raise ValueError(
+                f"Each event node must have exactly one outgoing edge when multiple event nodes exist (event index {event_idx})."
+            )
+
+    target_set = {targets[0] for targets in outgoing_targets.values()}
+    if len(target_set) != 1:
+        raise ValueError(
+            "All event nodes must connect to the same condition/action start node."
+        )
+
+    start_idx = next(iter(target_set))
+    if not (0 <= start_idx < len(nodes)):
+        raise ValueError("Event edge target references an invalid node index.")
+
+    if nodes[start_idx].node_type == NodeType.EVENT:
+        raise ValueError("Event nodes must connect to a condition or action node, not another event.")

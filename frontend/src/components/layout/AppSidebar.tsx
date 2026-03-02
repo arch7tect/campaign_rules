@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Megaphone, Users } from 'lucide-react'
+import { Braces, Megaphone, SlidersHorizontal, Users } from 'lucide-react'
 
 const links = [
   { to: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { to: '/contacts', label: 'Contacts', icon: Users },
+  { to: '/contact-attributes', label: 'Contact Attributes', icon: SlidersHorizontal },
+  { to: '/script-actions', label: 'Script Actions', icon: Braces },
 ]
 
 export function AppSidebar() {

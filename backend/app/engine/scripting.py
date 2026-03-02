@@ -1,5 +1,6 @@
 """Safe Python exec wrapper with restricted globals."""
 
+import ast
 import textwrap
 from typing import Any
 
@@ -70,11 +71,43 @@ def safe_exec(script: str, local_vars: dict[str, Any]) -> dict[str, Any]:
 
 
 def safe_eval(expression: str, local_vars: dict[str, Any]) -> Any:
-    """Evaluate a Python expression with restricted globals."""
+    """Evaluate Python code that returns a value.
+
+    Supports:
+    - Single expressions (eval mode)
+    - Statement blocks with ``return``
+    - Statement blocks ending in a final expression
+    """
     restricted_globals: dict[str, Any] = {
         "__builtins__": SAFE_BUILTINS,
     }
     try:
         return eval(expression, restricted_globals, local_vars)
+    except SyntaxError:
+        # Fall back to exec-style blocks for multi-line statements.
+        # Explicit `return` is handled by safe_exec's wrapper.
+        if _has_return(expression):
+            result_ns = safe_exec(expression, local_vars)
+            return result_ns.get("_return_value")
+
+        local_ns = dict(local_vars)
+        tree = ast.parse(expression, mode="exec")
+        if not tree.body:
+            return None
+
+        # Make the final bare expression the return value.
+        if isinstance(tree.body[-1], ast.Expr):
+            tree.body[-1] = ast.Assign(
+                targets=[ast.Name(id="_result_value", ctx=ast.Store())],
+                value=tree.body[-1].value,
+            )
+            ast.fix_missing_locations(tree)
+
+        exec(compile(tree, "<expression_block>", "exec"), restricted_globals, local_ns)
+        if "_result_value" not in local_ns:
+            raise RuntimeError(
+                "Statement block must end with an expression or include return."
+            )
+        return local_ns["_result_value"]
     except Exception as e:
         raise RuntimeError(f"Expression evaluation failed: {type(e).__name__}: {e}") from e

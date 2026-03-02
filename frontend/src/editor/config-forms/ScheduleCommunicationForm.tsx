@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { CodeEditor } from '@/components/CodeEditor'
 
 interface Props {
   config: Record<string, unknown>
@@ -37,11 +38,19 @@ export function ScheduleCommunicationForm({ config, onChange }: Props) {
       </div>
       <div>
         <Label>Min Time Expression</Label>
-        <Input value={(config.min_time_expr as string) ?? ''} onChange={e => set('min_time_expr', e.target.value)} placeholder="datetime.now() + timedelta(hours=1)" />
+        <CodeEditor
+          value={(config.min_time_expr as string) ?? ''}
+          onChange={value => set('min_time_expr', value)}
+          height="140px"
+        />
       </div>
       <div>
         <Label>Max Time Expression</Label>
-        <Input value={(config.max_time_expr as string) ?? ''} onChange={e => set('max_time_expr', e.target.value)} placeholder="datetime.now() + timedelta(hours=2)" />
+        <CodeEditor
+          value={(config.max_time_expr as string) ?? ''}
+          onChange={value => set('max_time_expr', value)}
+          height="140px"
+        />
       </div>
     </div>
   )

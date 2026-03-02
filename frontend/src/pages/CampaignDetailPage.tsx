@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,16 +10,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CampaignForm } from '@/components/campaigns/CampaignForm'
 import { AttributeForm } from '@/components/attributes/AttributeForm'
 import { useCampaign, useUpdateCampaign } from '@/hooks/use-campaigns'
 import { useRules, useCreateRule, useUpdateRule, useDeleteRule } from '@/hooks/use-rules'
-import { useCampaignMembers, useCreateCampaignMember, useDeleteCampaignMember } from '@/hooks/use-campaign-members'
+import { useCampaignMembers, useCreateCampaignMember, useDeleteCampaignMember, useUpdateCampaignMember } from '@/hooks/use-campaign-members'
 import { useAttributes, useCreateAttribute, useDeleteAttribute } from '@/hooks/use-attributes'
 import { useCommunications, useCancelCommunication } from '@/hooks/use-communications'
 import { useContacts } from '@/hooks/use-contacts'
 import type { CampaignCreate } from '@/types/campaign'
 import type { AttributeDefinitionCreate } from '@/types/attribute'
+import type { CampaignMember, MemberStatus } from '@/types/campaign-member'
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,28 +39,27 @@ export default function CampaignDetailPage() {
     <div>
       <PageHeader
         title={campaign.name}
+        onTitleClick={() => setEditOpen(true)}
         breadcrumbs={[{ label: 'Campaigns', to: '/campaigns' }, { label: campaign.name }]}
         actions={
           <>
             <Badge variant="secondary">{campaign.status}</Badge>
-            <Dialog open={editOpen} onOpenChange={setEditOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm"><Pencil className="h-3 w-3 mr-1" /> Edit</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Edit Campaign</DialogTitle></DialogHeader>
-                <CampaignForm
-                  initial={campaign}
-                  onSubmit={(data: CampaignCreate) =>
-                    updateCampaign.mutate({ id: campaignId, data }, { onSuccess: () => setEditOpen(false) })
-                  }
-                  loading={updateCampaign.isPending}
-                />
-              </DialogContent>
-            </Dialog>
           </>
         }
       />
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Campaign</DialogTitle></DialogHeader>
+          <CampaignForm
+            initial={campaign}
+            onSubmit={(data: CampaignCreate) =>
+              updateCampaign.mutate({ id: campaignId, data }, { onSuccess: () => setEditOpen(false) })
+            }
+            loading={updateCampaign.isPending}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="rules">
         <TabsList>
@@ -111,7 +113,11 @@ function RulesTab({ campaignId }: { campaignId: number }) {
         <TableBody>
           {rules?.map(r => (
             <TableRow key={r.id}>
-              <TableCell className="font-medium">{r.name}</TableCell>
+              <TableCell className="font-medium">
+                <Link to={`/campaigns/${campaignId}/rules/${r.id}`} className="hover:underline">
+                  {r.name}
+                </Link>
+              </TableCell>
               <TableCell>
                 <Switch
                   checked={r.is_active}
@@ -119,9 +125,6 @@ function RulesTab({ campaignId }: { campaignId: number }) {
                 />
               </TableCell>
               <TableCell className="space-x-2">
-                <Button asChild variant="outline" size="sm">
-                  <Link to={`/campaigns/${campaignId}/rules/${r.id}`}>Edit</Link>
-                </Button>
                 <Button variant="destructive" size="sm" onClick={() => deleteRule.mutate(r.id)}>Delete</Button>
               </TableCell>
             </TableRow>
@@ -140,11 +143,49 @@ function MembersTab({ campaignId }: { campaignId: number }) {
   const { data: contacts } = useContacts()
   const createMember = useCreateCampaignMember()
   const deleteMember = useDeleteCampaignMember()
+  const updateMember = useUpdateCampaignMember()
   const [open, setOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingMember, setEditingMember] = useState<CampaignMember | null>(null)
+  const [editStatus, setEditStatus] = useState<MemberStatus>('active')
+  const [editAttrsText, setEditAttrsText] = useState('{}')
+  const [editAttrsError, setEditAttrsError] = useState<string | null>(null)
   const [selectedContactId, setSelectedContactId] = useState('')
 
   const memberContactIds = new Set(members?.map(m => m.contact_id) ?? [])
   const availableContacts = contacts?.filter(c => !memberContactIds.has(c.id)) ?? []
+  const contactsById = new Map((contacts ?? []).map(c => [c.id, c]))
+
+  function openEdit(member: CampaignMember) {
+    setEditingMember(member)
+    setEditStatus(member.status)
+    setEditAttrsText(JSON.stringify(member.attributes ?? {}, null, 2))
+    setEditAttrsError(null)
+    setEditOpen(true)
+  }
+
+  function submitEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingMember) return
+    let parsed: Record<string, unknown> = {}
+    try {
+      const value = JSON.parse(editAttrsText || '{}')
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        parsed = value as Record<string, unknown>
+      } else {
+        setEditAttrsError('Attributes must be a JSON object.')
+        return
+      }
+    } catch {
+      setEditAttrsError('Invalid JSON.')
+      return
+    }
+
+    updateMember.mutate(
+      { id: editingMember.id, data: { status: editStatus, attributes: parsed } },
+      { onSuccess: () => setEditOpen(false) },
+    )
+  }
 
   return (
     <div className="mt-4">
@@ -186,7 +227,9 @@ function MembersTab({ campaignId }: { campaignId: number }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Contact ID</TableHead>
+            <TableHead>Contact</TableHead>
+            <TableHead>Main Attrs</TableHead>
+            <TableHead>Member Attrs</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Joined</TableHead>
             <TableHead>Actions</TableHead>
@@ -195,21 +238,78 @@ function MembersTab({ campaignId }: { campaignId: number }) {
         <TableBody>
           {members?.map(m => (
             <TableRow key={m.id}>
-              <TableCell>{m.contact_id}</TableCell>
+              <TableCell>
+                <div className="font-medium">
+                  {(() => {
+                    const c = contactsById.get(m.contact_id)
+                    if (!c) return `Contact #${m.contact_id}`
+                    return [c.first_name, c.last_name].filter(Boolean).join(' ') || `Contact #${m.contact_id}`
+                  })()}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {contactsById.get(m.contact_id)?.email ?? '-'}
+                </div>
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {formatAttrs(contactsById.get(m.contact_id)?.attributes)}
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {formatAttrs(m.attributes)}
+              </TableCell>
               <TableCell><Badge variant="secondary">{m.status}</Badge></TableCell>
               <TableCell className="text-muted-foreground">{new Date(m.created_at).toLocaleDateString()}</TableCell>
-              <TableCell>
+              <TableCell className="space-x-2">
+                <Button variant="outline" size="sm" onClick={() => openEdit(m)}>Edit</Button>
                 <Button variant="destructive" size="sm" onClick={() => deleteMember.mutate(m.id)}>Remove</Button>
               </TableCell>
             </TableRow>
           ))}
           {members?.length === 0 && (
-            <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No members yet</TableCell></TableRow>
+            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No members yet</TableCell></TableRow>
           )}
         </TableBody>
       </Table>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Member</DialogTitle></DialogHeader>
+          <form onSubmit={submitEdit} className="space-y-4">
+            <div>
+              <Label>Status</Label>
+              <Select value={editStatus} onValueChange={v => setEditStatus(v as MemberStatus)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">active</SelectItem>
+                  <SelectItem value="paused">paused</SelectItem>
+                  <SelectItem value="removed">removed</SelectItem>
+                  <SelectItem value="completed">completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Member Attributes (JSON)</Label>
+              <Textarea
+                className="font-mono text-xs"
+                rows={8}
+                value={editAttrsText}
+                onChange={e => { setEditAttrsText(e.target.value); setEditAttrsError(null) }}
+              />
+              {editAttrsError && <p className="text-xs text-destructive mt-1">{editAttrsError}</p>}
+            </div>
+            <Button type="submit" disabled={updateMember.isPending}>Save</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+function formatAttrs(attrs: Record<string, unknown> | null | undefined): string {
+  if (!attrs || Object.keys(attrs).length === 0) return '-'
+  return Object.entries(attrs)
+    .slice(0, 3)
+    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .join(', ')
 }
 
 function AttributesTab({ campaignId }: { campaignId: number }) {

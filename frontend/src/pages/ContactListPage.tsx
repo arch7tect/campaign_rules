@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -23,15 +23,20 @@ export default function ContactListPage() {
       <PageHeader
         title="Contacts"
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> New Contact</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Create Contact</DialogTitle></DialogHeader>
-              <ContactForm onSubmit={handleCreate} loading={createMutation.isPending} />
-            </DialogContent>
-          </Dialog>
+          <>
+            <Button asChild variant="outline">
+              <Link to="/contact-attributes"><SlidersHorizontal className="h-4 w-4 mr-1" /> Contact Attribute Metadata</Link>
+            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button><Plus className="h-4 w-4 mr-1" /> New Contact</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Create Contact</DialogTitle></DialogHeader>
+                <ContactForm onSubmit={handleCreate} loading={createMutation.isPending} />
+              </DialogContent>
+            </Dialog>
+          </>
         }
       />
       {isLoading ? (

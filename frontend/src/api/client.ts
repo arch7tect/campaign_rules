@@ -12,7 +12,16 @@ async function handleResponse<T>(res: Response): Promise<T> {
     let message: string
     try {
       const json = JSON.parse(body)
-      message = json.detail ?? body
+      const detail = json.detail
+      if (typeof detail === 'string') {
+        message = detail
+      } else if (Array.isArray(detail)) {
+        message = detail.map(item => item?.msg ?? JSON.stringify(item)).join('; ')
+      } else if (detail != null) {
+        message = JSON.stringify(detail)
+      } else {
+        message = body
+      }
     } catch {
       message = body
     }

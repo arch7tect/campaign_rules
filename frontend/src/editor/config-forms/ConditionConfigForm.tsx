@@ -71,7 +71,13 @@ export function ConditionConfigForm({ config, onChange, campaignId }: Props) {
             <Button variant="ghost" size="sm" onClick={() => removeCheck(i)}><Trash2 className="h-3 w-3" /></Button>
           </div>
 
-          <ValueRefEditor label="Left" value={check.left} onChange={left => updateCheck(i, { left })} campaignId={campaignId} />
+          <ValueRefEditor
+            label="Left"
+            value={check.left}
+            onChange={left => updateCheck(i, { left })}
+            campaignId={campaignId}
+            allowExpression={false}
+          />
 
           <Select value={check.operator} onValueChange={op => updateCheck(i, { operator: op as ComparisonOperator })}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -81,7 +87,13 @@ export function ConditionConfigForm({ config, onChange, campaignId }: Props) {
           </Select>
 
           {!unaryOps.has(check.operator) && (
-            <ValueRefEditor label="Right" value={check.right ?? emptyRef()} onChange={right => updateCheck(i, { right })} campaignId={campaignId} />
+            <ValueRefEditor
+              label="Right"
+              value={check.right ?? emptyRef()}
+              onChange={right => updateCheck(i, { right })}
+              campaignId={campaignId}
+              allowExpression
+            />
           )}
         </div>
       ))}

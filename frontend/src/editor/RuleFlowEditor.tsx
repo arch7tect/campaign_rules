@@ -34,7 +34,7 @@ const edgeTypes = {
 
 interface RuleFlowEditorProps {
   rule: Rule
-  onSave: (graph: RuleGraphUpdate) => void
+  onSave: (graph: RuleGraphUpdate) => void | Promise<void>
   saving?: boolean
   campaignId?: number
 }
@@ -44,6 +44,7 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges)
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReturnType<typeof useRef<unknown>>['current']>(null)
 
@@ -58,8 +59,7 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
     if (targetNode?.data.nodeType === 'event') return
     // No self-loops
     if (connection.source === connection.target) return
-    const label = connection.sourceHandle || 'default'
-    setEdges(eds => addEdge({ ...connection, type: 'labeled', label, data: {} }, eds))
+    setEdges(eds => addEdge({ ...connection, type: 'labeled', label: '', data: { customLabel: '' } }, eds))
   }, [nodes, setEdges])
 
   const isValidConnection = useCallback((connection: Edge | Connection) => {
@@ -101,7 +101,7 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
       'action:modify_model': { action_type: 'modify_model', assignments: [] },
       'action:cancel_communications': { action_type: 'cancel_communications' },
       'action:schedule_communication': { action_type: 'schedule_communication', channel: '' },
-      'action:run_script': { action_type: 'run_script', script: '' },
+      'action:run_script': { action_type: 'run_script', script_action_id: null, params: {} },
       'action:trigger_event': { action_type: 'trigger_event', event_name: '' },
     }
 
@@ -166,7 +166,7 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
   }, [setNodes, setEdges])
 
   const handleEdgeLabelChange = useCallback((edgeId: string, newLabel: string) => {
-    const trimmed = newLabel.trim() || 'default'
+    const trimmed = newLabel.trim()
     const updater = (eds: Edge[]) => eds.map(e => {
       if (e.id !== edgeId) return e
       return { ...e, data: { ...e.data, customLabel: trimmed } }
@@ -184,9 +184,42 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
     [edges, handleEdgeLabelChange],
   )
 
-  const handleSave = useCallback(() => {
-    const graph = flowToGraph(nodesRef.current, edgesRef.current)
-    onSave(graph)
+  const handleSave = useCallback(async () => {
+    setSaveError(null)
+    const currentNodes = nodesRef.current
+    const currentEdges = edgesRef.current
+    const eventIds = currentNodes.filter(n => n.data.nodeType === 'event').map(n => n.id)
+
+    if (eventIds.length > 1) {
+      const outgoingByEvent = new Map<string, string[]>()
+      for (const eventId of eventIds) outgoingByEvent.set(eventId, [])
+      for (const edge of currentEdges) {
+        if (outgoingByEvent.has(edge.source)) {
+          outgoingByEvent.get(edge.source)?.push(edge.target)
+        }
+      }
+
+      for (const [eventId, targets] of outgoingByEvent.entries()) {
+        if (targets.length !== 1) {
+          setSaveError(`Each event node must have exactly one outgoing edge when multiple events exist (node ${eventId.slice(0, 6)}).`)
+          return
+        }
+      }
+
+      const targets = new Set(Array.from(outgoingByEvent.values()).map(value => value[0]))
+      if (targets.size !== 1) {
+        setSaveError('All event nodes must connect to the same condition/action start node.')
+        return
+      }
+    }
+
+    const graph = flowToGraph(currentNodes, currentEdges)
+    try {
+      await onSave(graph)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save rule graph.'
+      setSaveError(message)
+    }
   }, [onSave])
 
   return (
@@ -214,6 +247,11 @@ export function RuleFlowEditor({ rule, onSave, saving, campaignId }: RuleFlowEdi
           <Background variant={BackgroundVariant.Dots} gap={16} />
         </ReactFlow>
         <div className="absolute top-3 right-3 z-10">
+          {saveError && (
+            <div className="absolute right-0 top-0 w-80 -translate-y-[calc(100%+8px)] rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {saveError}
+            </div>
+          )}
           <button
             onClick={handleSave}
             disabled={saving}

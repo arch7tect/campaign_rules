@@ -16,6 +16,41 @@ def test_safe_eval_no_import():
         safe_eval("__import__('os')", {})
 
 
+def test_safe_eval_multiline_with_return():
+    result = safe_eval(
+        """\
+x = 10
+y = x + 5
+return y
+""",
+        {},
+    )
+    assert result == 15
+
+
+def test_safe_eval_multiline_with_final_expression():
+    result = safe_eval(
+        """\
+x = 10
+y = x + 5
+y
+""",
+        {},
+    )
+    assert result == 15
+
+
+def test_safe_eval_multiline_requires_value():
+    with pytest.raises(RuntimeError):
+        safe_eval(
+            """\
+x = 10
+y = x + 5
+""",
+            {},
+        )
+
+
 def test_safe_exec_basic():
     result = safe_exec("y = x + 1", {"x": 10})
     assert result["y"] == 11

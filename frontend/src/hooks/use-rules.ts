@@ -35,13 +35,13 @@ export function useUpdateRule() {
   })
 }
 
-export function useRuleGraphMutation(ruleId: number) {
+export function useRuleGraphMutation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: RuleGraphUpdate) => rulesApi.putGraph(ruleId, data),
-    onSuccess: () => {
+    mutationFn: ({ id, data }: { id: number; data: RuleGraphUpdate }) => rulesApi.putGraph(id, data),
+    onSuccess: (_d, { id }) => {
       qc.invalidateQueries({ queryKey: ['rules'] })
-      qc.invalidateQueries({ queryKey: ['rules', ruleId] })
+      qc.invalidateQueries({ queryKey: ['rules', id] })
     },
   })
 }

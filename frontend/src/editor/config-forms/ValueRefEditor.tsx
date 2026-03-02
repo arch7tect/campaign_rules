@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CodeEditor } from '@/components/CodeEditor'
 import { useAttributes } from '@/hooks/use-attributes'
 import type { ValueRef, ValueSource } from '@/types/rule-configs'
 import type { OwnerType } from '@/types/attribute'
@@ -10,6 +12,7 @@ interface Props {
   value: ValueRef
   onChange: (v: ValueRef) => void
   campaignId?: number
+  allowExpression?: boolean
 }
 
 const sources: { value: ValueSource; label: string }[] = [
@@ -24,7 +27,16 @@ const objectTypes: { value: string; ownerType?: OwnerType }[] = [
   { value: 'conversation_results' },
 ]
 
-export function ValueRefEditor({ label, value, onChange, campaignId }: Props) {
+export function ValueRefEditor({ label, value, onChange, campaignId, allowExpression = true }: Props) {
+  const allowedSources = allowExpression ? sources : sources.filter(s => s.value !== 'expression')
+  const selectedSource = allowExpression || value.source !== 'expression' ? value.source : 'constant'
+
+  useEffect(() => {
+    if (!allowExpression && value.source === 'expression') {
+      onChange({ source: 'constant', value: '' })
+    }
+  }, [allowExpression, value.source, onChange])
+
   const selectedObj = objectTypes.find(o => o.value === value.object_type)
   const ownerType = selectedObj?.ownerType
 
@@ -43,10 +55,10 @@ export function ValueRefEditor({ label, value, onChange, campaignId }: Props) {
   return (
     <div className="space-y-2 border rounded-md p-2">
       <Label className="text-xs">{label}</Label>
-      <Select value={value.source} onValueChange={s => onChange({ ...value, source: s as ValueSource })}>
+      <Select value={selectedSource} onValueChange={s => onChange({ ...value, source: s as ValueSource })}>
         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          {sources.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          {allowedSources.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
         </SelectContent>
       </Select>
 
@@ -95,11 +107,10 @@ export function ValueRefEditor({ label, value, onChange, campaignId }: Props) {
       )}
 
       {value.source === 'expression' && (
-        <Input
-          className="h-8 text-xs"
-          placeholder="Python expression"
+        <CodeEditor
           value={value.expression ?? ''}
-          onChange={e => onChange({ ...value, expression: e.target.value })}
+          onChange={expression => onChange({ ...value, expression })}
+          height="140px"
         />
       )}
     </div>

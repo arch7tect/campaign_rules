@@ -51,7 +51,9 @@ export interface ScheduleCommunicationActionConfig {
 
 export interface RunScriptActionConfig {
   action_type: 'run_script'
-  script: string
+  script_action_id?: number | null
+  params?: Record<string, unknown> | null
+  script?: string | null
 }
 
 export interface TriggerEventActionConfig {

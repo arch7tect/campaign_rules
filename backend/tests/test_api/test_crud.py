@@ -134,6 +134,173 @@ async def test_rules_crud(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_script_actions_crud(client: AsyncClient):
+    create_resp = await client.post("/api/script-actions/", json={
+        "name": "Set Tier",
+        "description": "Sets customer tier",
+        "script": "return {'contact.tier': params['tier']}",
+        "param_schema": {"tier": {"type": "string", "required": True}},
+    })
+    assert create_resp.status_code == 201
+    action = create_resp.json()
+    action_id = action["id"]
+    assert action["name"] == "Set Tier"
+
+    list_resp = await client.get("/api/script-actions/")
+    assert list_resp.status_code == 200
+    assert any(item["id"] == action_id for item in list_resp.json())
+
+    patch_resp = await client.patch(f"/api/script-actions/{action_id}", json={
+        "description": "Sets contact tier",
+    })
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["description"] == "Sets contact tier"
+
+    delete_resp = await client.delete(f"/api/script-actions/{action_id}")
+    assert delete_resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_rules_allow_multiple_events_when_they_converge(client: AsyncClient):
+    cam = await client.post("/api/campaigns/", json={"name": "Rules Camp"})
+    campaign_id = cam.json()["id"]
+
+    resp = await client.post("/api/rules/", json={
+        "campaign_id": campaign_id,
+        "name": "Valid Multi-Event Rule",
+        "nodes": [
+            {
+                "node_type": "event",
+                "node_subtype": "member_added",
+                "config": {"event_type": "member_added"},
+                "position_x": 0,
+                "position_y": 0,
+            },
+            {
+                "node_type": "event",
+                "node_subtype": "contact_updated",
+                "config": {"event_type": "contact_updated"},
+                "position_x": 200,
+                "position_y": 0,
+            },
+            {
+                "node_type": "condition",
+                "node_subtype": "variable_check",
+                "config": {"condition_type": "variable_check", "checks": [], "has_else_port": True},
+                "position_x": 100,
+                "position_y": 200,
+            },
+        ],
+        "edges": [
+            {"source_node_id": 0, "source_port": "default", "target_node_id": 2, "target_port": "default"},
+            {"source_node_id": 1, "source_port": "default", "target_node_id": 2, "target_port": "default"},
+        ],
+    })
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_rules_reject_multiple_events_when_not_converged(client: AsyncClient):
+    cam = await client.post("/api/campaigns/", json={"name": "Rules Camp"})
+    campaign_id = cam.json()["id"]
+
+    create_resp = await client.post("/api/rules/", json={
+        "campaign_id": campaign_id,
+        "name": "Valid Rule",
+        "nodes": [
+            {
+                "node_type": "event",
+                "node_subtype": "member_added",
+                "config": {"event_type": "member_added"},
+                "position_x": 0,
+                "position_y": 0,
+            },
+        ],
+        "edges": [],
+    })
+    assert create_resp.status_code == 201
+    rule_id = create_resp.json()["id"]
+
+    resp = await client.put(f"/api/rules/{rule_id}/graph", json={
+        "nodes": [
+            {
+                "node_type": "event",
+                "node_subtype": "member_added",
+                "config": {"event_type": "member_added"},
+                "position_x": 0,
+                "position_y": 0,
+            },
+            {
+                "node_type": "event",
+                "node_subtype": "contact_updated",
+                "config": {"event_type": "contact_updated"},
+                "position_x": 200,
+                "position_y": 0,
+            },
+            {
+                "node_type": "action",
+                "node_subtype": "cancel_communications",
+                "config": {"action_type": "cancel_communications"},
+                "position_x": 0,
+                "position_y": 200,
+            },
+            {
+                "node_type": "action",
+                "node_subtype": "trigger_event",
+                "config": {"action_type": "trigger_event", "event_name": "x"},
+                "position_x": 200,
+                "position_y": 200,
+            },
+        ],
+        "edges": [
+            {"source_node_id": 0, "source_port": "default", "target_node_id": 2, "target_port": "default"},
+            {"source_node_id": 1, "source_port": "default", "target_node_id": 3, "target_port": "default"},
+        ],
+    })
+    assert resp.status_code == 422
+    assert "same condition/action start node" in str(resp.json()).lower()
+
+
+@pytest.mark.asyncio
+async def test_rules_reject_multiple_events_without_single_outgoing_edge_each(client: AsyncClient):
+    cam = await client.post("/api/campaigns/", json={"name": "Rules Camp"})
+    campaign_id = cam.json()["id"]
+
+    resp = await client.post("/api/rules/", json={
+        "campaign_id": campaign_id,
+        "name": "Invalid Multi-Event Rule",
+        "nodes": [
+            {
+                "node_type": "event",
+                "node_subtype": "member_added",
+                "config": {"event_type": "member_added"},
+                "position_x": 0,
+                "position_y": 0,
+            },
+            {
+                "node_type": "event",
+                "node_subtype": "contact_updated",
+                "config": {"event_type": "contact_updated"},
+                "position_x": 200,
+                "position_y": 0,
+            },
+            {
+                "node_type": "action",
+                "node_subtype": "cancel_communications",
+                "config": {"action_type": "cancel_communications"},
+                "position_x": 100,
+                "position_y": 200,
+            },
+        ],
+        "edges": [
+            {"source_node_id": 0, "source_port": "default", "target_node_id": 2, "target_port": "default"},
+        ],
+    })
+    assert resp.status_code == 422
+    assert "exactly one outgoing edge" in str(resp.json()).lower()
+
+
+@pytest.mark.asyncio
 async def test_event_fires_rule(client: AsyncClient):
     """End-to-end: create everything via API then fire an event."""
     # Setup

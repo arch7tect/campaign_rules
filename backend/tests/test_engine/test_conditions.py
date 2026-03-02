@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+from pydantic import ValidationError
 
 from backend.app.engine.conditions import compare, evaluate_variable_check, resolve_value
 from backend.app.engine.context import ExecutionContext
@@ -175,3 +176,24 @@ class TestEvaluateVariableCheck:
             ],
         )
         assert evaluate_variable_check(config, ctx) == "high"
+
+
+class TestVariableCheckValidation:
+    def test_left_expression_is_rejected(self):
+        with pytest.raises(ValidationError):
+            VariableCheck(
+                left=ValueRef(source=ValueSource.EXPRESSION, expression="1 + 1"),
+                operator=ComparisonOperator.EQ,
+                right=ValueRef(source=ValueSource.CONSTANT, value=2),
+                port_name="match",
+            )
+
+    def test_right_expression_is_allowed(self):
+        check = VariableCheck(
+            left=ValueRef(source=ValueSource.ATTRIBUTE, object_type="contact", attribute_name="score"),
+            operator=ComparisonOperator.GT,
+            right=ValueRef(source=ValueSource.EXPRESSION, expression="50 + 10"),
+            port_name="high",
+        )
+        assert check.right is not None
+        assert check.right.source == ValueSource.EXPRESSION

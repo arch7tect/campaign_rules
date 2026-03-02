@@ -32,7 +32,7 @@ export function LabeledEdge({
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const displayLabel = (data?.customLabel as string) || (label as string) || 'default'
+  const displayLabel = (data?.customLabel as string) ?? (label as string) ?? ''
   const onLabelChange = data?.onLabelChange as ((edgeId: string, newLabel: string) => void) | undefined
 
   useEffect(() => {

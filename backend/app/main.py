@@ -11,6 +11,7 @@ from backend.app.api import (
     contacts,
     events,
     rules,
+    script_actions,
 )
 from backend.app.database import engine
 from backend.app.models import Base
@@ -41,6 +42,7 @@ app.include_router(attributes.router)
 app.include_router(rules.router)
 app.include_router(communications.router)
 app.include_router(events.router)
+app.include_router(script_actions.router)
 
 
 @app.get("/health")

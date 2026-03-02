@@ -7,7 +7,7 @@ import type { AttributeDefinition, AttributeDefinitionCreate, DataType, OwnerTyp
 
 interface AttributeFormProps {
   initial?: AttributeDefinition
-  campaignId: number
+  campaignId?: number
   ownerType: OwnerType
   onSubmit: (data: AttributeDefinitionCreate) => void
   loading?: boolean
@@ -22,12 +22,17 @@ export function AttributeForm({ initial, campaignId, ownerType, onSubmit, loadin
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onSubmit({
+    const data: AttributeDefinitionCreate = {
       name,
       display_name: displayName,
       data_type: dataType,
       owner_type: ownerType,
-      campaign_id: campaignId,
+    }
+    if (ownerType === 'campaign_member' && campaignId != null) {
+      data.campaign_id = campaignId
+    }
+    onSubmit({
+      ...data,
     })
   }
 

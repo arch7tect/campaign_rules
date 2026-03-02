@@ -9,6 +9,7 @@ from backend.app.models.campaign_member import CampaignMember, MemberStatus
 from backend.app.models.communication import CommunicationStatus, ScheduledCommunication
 from backend.app.models.contact import ContactInfo
 from backend.app.models.rule import NodeType, Rule, RuleEdge, RuleNode
+from backend.app.models.script_action import ScriptAction
 
 
 @pytest_asyncio.fixture
@@ -352,6 +353,52 @@ async def test_run_script_action(session: AsyncSession, setup_data):
     await executor.execute_event(campaign.id, "member_added", ctx)
 
     assert ctx.contact.attributes["computed"] == "Alice Smith"
+
+
+@pytest.mark.asyncio
+async def test_run_script_action_library_with_params(session: AsyncSession, setup_data):
+    """Run script library action executes selected script with params."""
+    contact, campaign, member = setup_data
+
+    script_action = ScriptAction(
+        name="set_with_param",
+        script="return {'contact.computed': f\"{contact_first_name} {params['suffix']}\"}",
+    )
+    session.add(script_action)
+    await session.flush()
+
+    rule = Rule(campaign_id=campaign.id, name="Run Script Library", is_active=True)
+    session.add(rule)
+    await session.flush()
+
+    event_node = RuleNode(
+        rule_id=rule.id, node_type=NodeType.EVENT, node_subtype="member_added",
+        config={"event_type": "member_added"}, position_x=0, position_y=0,
+    )
+    action_node = RuleNode(
+        rule_id=rule.id, node_type=NodeType.ACTION, node_subtype="run_script",
+        config={
+            "action_type": "run_script",
+            "script_action_id": script_action.id,
+            "params": {"suffix": "VIP"},
+        },
+        position_x=200, position_y=0,
+    )
+    session.add_all([event_node, action_node])
+    await session.flush()
+
+    edge = RuleEdge(
+        rule_id=rule.id, source_node_id=event_node.id, source_port="default",
+        target_node_id=action_node.id, target_port="default",
+    )
+    session.add(edge)
+    await session.commit()
+
+    ctx = ExecutionContext(session=session, contact=contact, campaign_member=member)
+    executor = RuleExecutor(session)
+    await executor.execute_event(campaign.id, "member_added", ctx)
+
+    assert ctx.contact.attributes["computed"] == "Alice VIP"
 
 
 @pytest.mark.asyncio

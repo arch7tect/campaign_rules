@@ -30,8 +30,8 @@ export function ruleToFlow(rule: Rule): { nodes: Node<FlowNodeData>[]; edges: Ed
     sourceHandle: e.source_port,
     target: String(e.target_node_id),
     targetHandle: e.target_port,
-    label: e.label || e.source_port || 'default',
-    data: { customLabel: e.label || e.source_port || 'default' },
+    label: e.label ?? '',
+    data: { customLabel: e.label ?? '' },
   }))
 
   return { nodes, edges }

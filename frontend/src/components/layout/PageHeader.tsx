@@ -10,9 +10,10 @@ interface PageHeaderProps {
   title: string
   breadcrumbs?: Crumb[]
   actions?: ReactNode
+  onTitleClick?: () => void
 }
 
-export function PageHeader({ title, breadcrumbs, actions }: PageHeaderProps) {
+export function PageHeader({ title, breadcrumbs, actions, onTitleClick }: PageHeaderProps) {
   return (
     <div className="mb-6">
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -30,7 +31,17 @@ export function PageHeader({ title, breadcrumbs, actions }: PageHeaderProps) {
         </nav>
       )}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{title}</h1>
+        {onTitleClick ? (
+          <button
+            type="button"
+            onClick={onTitleClick}
+            className="text-2xl font-bold text-left hover:underline"
+          >
+            {title}
+          </button>
+        ) : (
+          <h1 className="text-2xl font-bold">{title}</h1>
+        )}
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </div>
